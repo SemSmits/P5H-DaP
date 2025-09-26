@@ -12,9 +12,9 @@ import java.util.List;
 public class ReizigerDAOHibernate implements ReizigerDAO {
 
     private final SessionFactory sf;
-    private final OVChipkaartDAO ovDao;
+    private OVChipkaartDAO ovDao;
 
-    public ReizigerDAOHibernate(SessionFactory sf, OVChipkaartDAO ovDao) {
+    public ReizigerDAOHibernate(SessionFactory sf) {
         this.sf = sf;
         this.ovDao = ovDao;
     }

@@ -78,23 +78,48 @@ public class OVChipkaartDAOHibernate implements OVChipkaartDAO {
         }
     }
 
-    @Override
     public List<OVChipkaart> findAll() {
-        Session session = sf.openSession();
+        Session s = sf.openSession();
         Transaction tx = null;
         try {
-            tx = session.beginTransaction();
-            List<OVChipkaart> result = session
-                    .createQuery("from OVChipkaart", OVChipkaart.class)
-                    .getResultList();
+            tx = s.beginTransaction();
+            List<OVChipkaart> res = s.createQuery(
+                    "select distinct k from OVChipkaart k " +
+                            "left join fetch k.products " +
+                            "left join fetch k.reiziger",
+                    OVChipkaart.class
+            ).getResultList();
             tx.commit();
-            return result;
-        } catch (Exception ex) {
+            return res;
+        } catch (Exception e) {
             if (tx != null) tx.rollback();
-            throw ex;
+            throw e;
         } finally {
-            session.close();
+            s.close();
         }
     }
+
+    public OVChipkaart findById(int kaartNummer) {
+        Session s = sf.openSession();
+        Transaction tx = null;
+        try {
+            tx = s.beginTransaction();
+            OVChipkaart k = s.createQuery(
+                    "select k from OVChipkaart k " +
+                            "left join fetch k.products " +
+                            "where k.kaartNummer = :id",
+                    OVChipkaart.class
+            ).setParameter("id", kaartNummer).uniqueResult();
+            tx.commit();
+            return k;
+        } catch (Exception e) {
+            if (tx != null) tx.rollback();
+            throw e;
+        } finally {
+            s.close();
+        }
+    }
+
+
 
 }

@@ -1,73 +1,75 @@
 package ovchip.main;
 
-import ovchip.dao.OVChipkaartDAOHibernate;
-import ovchip.dao.ReizigerDAOHibernate;
-import ovchip.domain.Adres;
-import ovchip.domain.OVChipkaart;
-import ovchip.domain.Reiziger;
-import ovchip.util.HibernateUtil;
-import org.hibernate.SessionFactory;
+import ovchip.dao.*;
+import ovchip.domain.*;
 
-import java.util.Date;
+import org.hibernate.SessionFactory;
+import org.hibernate.cfg.Configuration;
+
+import java.math.BigDecimal;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 
 public class Main {
-
     public static void main(String[] args) {
-        SessionFactory sf = HibernateUtil.getSessionFactory();
+        SessionFactory factory = new Configuration().configure().buildSessionFactory();
 
-        OVChipkaartDAOHibernate ovDao = new OVChipkaartDAOHibernate(sf);
-        ReizigerDAOHibernate rDao = new ReizigerDAOHibernate(sf, ovDao);
+        ProductDAO pdao = new ProductDAOHibernate(factory);
+        OVChipkaartDAOHibernate kdao = new OVChipkaartDAOHibernate(factory);
+        ReizigerDAOHibernate rdao = new ReizigerDAOHibernate(factory);
 
         try {
-            System.out.println("---- TEST DAO's (Hibernate) ----");
+            // 1) Maak een reiziger aan
+            Reiziger r = new Reiziger(1000, "S.", null, "Tester", Date.valueOf(LocalDate.of(2002, 3, 15)));
+            rdao.save(r);
 
-            // 1. Maak Reiziger + Adres
-            Reiziger r1 = new Reiziger(77, "S", null, "Student", new Date());
-            Adres a1 = new Adres(77, "3511AB", "10", "Nijverheidsweg", "Utrecht");
-            r1.setAdres(a1);
+            // 2) Maak een kaart en sla op
+            OVChipkaart k = new OVChipkaart(88880001, Date.valueOf("2028-12-31"), 2, 50.00);
+            k.setReiziger(r);
+            kdao.save(k);
 
-            // 2. Maak OVChipkaarten en koppel ze
-            OVChipkaart k1 = new OVChipkaart(10077, new Date(), 2, 25.0);
-            OVChipkaart k2 = new OVChipkaart(10078, new Date(), 1, 15.5);
+            // 3) Maak producten en sla op
+            Product p1 = new Product(901, "Altijd Vrij", "Vrij reizen", new BigDecimal("299.95"));
+            Product p2 = new Product(902, "Dal Voordeel", "40% korting daluren", new BigDecimal("5.10"));
+            pdao.save(p1);
+            pdao.save(p2);
 
-            r1.addOVChipkaart(k1);
-            r1.addOVChipkaart(k2);
+            // 4) Koppel kaart ↔ producten en update
+            k.addProduct(p1);
+            k.addProduct(p2);
+            kdao.update(k);
 
-            // 3. Save Reiziger + Adres
-            System.out.println("Saving reiziger...");
-            rDao.save(r1);
+            printProducts("Na koppelen (p1+p2)", pdao.findByOVChipkaart(k));
 
-            // 4. Save kaarten via ovDao
-            System.out.println("Saving kaarten...");
-            ovDao.save(k1);
-            ovDao.save(k2);
+            // 5) Update links: verwijder p2, voeg p3 toe
+            Product p3 = new Product(903, "Weekend Vrij", "Vrij reizen in weekend", new BigDecimal("31.00"));
+            pdao.save(p3);
+            k.removeProduct(p2);
+            k.addProduct(p3);
+            kdao.update(k);
 
-            // 5. Find all reizigers
-            System.out.println("\nAlle reizigers:");
-            List<Reiziger> all = rDao.findAll();
-            all.forEach(System.out::println);
+            printProducts("Na update (p1+p3)", pdao.findByOVChipkaart(k));
 
-            // 6. Find kaarten bij reiziger
-            System.out.println("\nKaarten van reiziger 77:");
-            ovDao.findByReiziger(r1).forEach(System.out::println);
+            // 6) Delete p1 → koppelingen weg
+            pdao.delete(p1);
+            printProducts("Na delete p1", pdao.findByOVChipkaart(k));
 
-            // 7. Update saldo
-            k1.setSaldo(99.9);
-            ovDao.update(k1);
-            System.out.println("\nKaart 10077 na update:");
-            ovDao.findByReiziger(r1).forEach(System.out::println);
-
-            // 8. Delete reiziger (cascade verwijdert adres, kaarten via ovDao.delete in ReizigerDAO)
-            System.out.println("\nDeleting reiziger 77...");
-            rDao.delete(r1);
-
-            // Check na delete
-            System.out.println("\nAlle reizigers na delete:");
-            rDao.findAll().forEach(System.out::println);
+            // 7) Cleanup
+            kdao.delete(k);
+            pdao.delete(p2);
+            pdao.delete(p3);
+            rdao.delete(r);
 
         } finally {
-            HibernateUtil.shutdown();
+            factory.close();
+        }
+    }
+
+    private static void printProducts(String title, List<Product> producten) {
+        System.out.println("-- " + title + " (" + producten.size() + ") --");
+        for (Product p : producten) {
+            System.out.println(p);
         }
     }
 }
